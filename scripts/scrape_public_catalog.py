@@ -262,12 +262,19 @@ def main() -> None:
     current_models = scrape_catalog_models()
     previous_models = load_previous_snapshot()
 
+    force_test_email = os.getenv("FORCE_TEST_EMAIL", "false").lower() == "true"
+    test_model_name = os.getenv("TEST_MODEL_NAME", "TEST-MODEL-9999")
+
     first_run = len(previous_models) == 0
     new_models = diff_new_models(previous_models, current_models)
 
+    # 테스트 모드면 신규가 없어도 가짜 신규 1개 추가
+    if force_test_email and test_model_name not in new_models:
+        new_models = [test_model_name] + new_models
+
     save_snapshot(current_models)
 
-    if first_run:
+    if first_run and not force_test_email:
         print("First run detected. Snapshot initialized, no email sent.")
         print(f"Current detected entries: {len(current_models)}")
         print(current_models[:30])
@@ -280,7 +287,6 @@ def main() -> None:
     print(f"Current detected entries: {len(current_models)}")
     print(f"New visible entries: {len(new_models)}")
     print(new_models)
-
 
 if __name__ == "__main__":
     try:
