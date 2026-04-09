@@ -15,10 +15,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.11"
 
@@ -27,70 +27,3 @@ jobs:
 
       - name: Install Playwright browser
         run: python -m playwright install --with-deps chromium
-
-      - name: Prepare state directory
-        run: mkdir -p state
-
-      - name: Download latest snapshot artifact if exists
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          REPO: ${{ github.repository }}
-        run: |
-          python <<'PY'
-          import os
-          import sys
-          import requests
-          import zipfile
-          from io import BytesIO
-          from pathlib import Path
-
-          repo = os.environ["REPO"]
-          token = os.environ["GITHUB_TOKEN"]
-          headers = {
-              "Authorization": f"Bearer {token}",
-              "Accept": "application/vnd.github+json",
-          }
-
-          url = f"https://api.github.com/repos/{repo}/actions/artifacts?per_page=100"
-          res = requests.get(url, headers=headers, timeout=30)
-          res.raise_for_status()
-          artifacts = res.json().get("artifacts", [])
-
-          target = None
-          for artifact in artifacts:
-              if artifact.get("name") == "public-foundry-catalog-snapshot" and not artifact.get("expired", False):
-                  target = artifact
-                  break
-
-          Path("state").mkdir(parents=True, exist_ok=True)
-
-          if not target:
-              print("No previous snapshot artifact found.")
-              sys.exit(0)
-
-          download_url = target["archive_download_url"]
-          zip_res = requests.get(download_url, headers=headers, timeout=60)
-          zip_res.raise_for_status()
-
-          with zipfile.ZipFile(BytesIO(zip_res.content)) as zf:
-              zf.extractall("state")
-
-          print("Previous snapshot artifact downloaded.")
-          PY
-
-      - name: Run catalog check
-        env:
-          EMAIL_SMTP_HOST: ${{ secrets.EMAIL_SMTP_HOST }}
-          EMAIL_SMTP_PORT: ${{ secrets.EMAIL_SMTP_PORT }}
-          EMAIL_USERNAME: ${{ secrets.EMAIL_USERNAME }}
-          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
-          EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
-          EMAIL_TO: ${{ secrets.EMAIL_TO }}
-        run: python scripts/scrape_public_catalog.py
-
-      - name: Upload latest snapshot artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: public-foundry-catalog-snapshot
-          path: state/catalog_snapshot.json
-          retention-days: 30
